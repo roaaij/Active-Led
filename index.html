@@ -1,0 +1,283 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>LED Viewing Distance Calculator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Concept: an instrument panel. Inputs on the left, readouts on the right, and a dot grid whose spacing follows the pitch you type. */
+:root {
+  --bg: #EDF1F5;
+  --surface: #F9FBFC;
+  --line: #D3DBE4;
+  --ink: #0F1B2D;
+  --muted: #55657A;
+  --accent: #0A7C86;
+  --accent-ink: #FFFFFF;
+  --chip: #E3EAF1;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0B121C;
+    --surface: #121C29;
+    --line: #26354A;
+    --ink: #E6EDF5;
+    --muted: #93A4B8;
+    --accent: #3CC9C0;
+    --accent-ink: #06222B;
+    --chip: #1B2A3C;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0B121C;
+  --surface: #121C29;
+  --line: #26354A;
+  --ink: #E6EDF5;
+  --muted: #93A4B8;
+  --accent: #3CC9C0;
+  --accent-ink: #06222B;
+  --chip: #1B2A3C;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  padding-block: 32px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+
+header { display: flex; flex-direction: column; gap: 6px; }
+h1 { margin: 0; font-size: clamp(28px, 5vw, 40px); line-height: 1.1; font-weight: 600; letter-spacing: -0.01em; text-wrap: balance; }
+.sub { margin: 0; color: var(--muted); max-width: 60ch; }
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+
+.row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 20px; }
+@media (max-width: 720px) { .row { grid-template-columns: minmax(0, 1fr); } }
+
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+label { font-size: 14px; font-weight: 500; }
+.input-wrap { position: relative; }
+input[type="number"] {
+  width: 100%;
+  font: 500 24px/1.2 var(--font-num);
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 10px 56px 10px 12px;
+  font-variant-numeric: tabular-nums;
+}
+input[type="number"]:focus-visible, .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.unit { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font: 500 14px var(--font-num); color: var(--muted); pointer-events: none; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  font: 500 14px var(--font-num);
+  color: var(--ink);
+  background: var(--chip);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.readouts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.read { border-top: 1px solid var(--line); padding-top: 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.read:first-child { border-top: 0; padding-top: 0; }
+.read .k { font-size: 13px; color: var(--muted); }
+.read .v { font: 600 clamp(26px, 5vw, 34px)/1.15 var(--font-num); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.read .v.accent { color: var(--accent); }
+.read .s { font: 400 14px var(--font-num); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.dots-box { border: 1px solid var(--line); border-radius: 6px; background: var(--bg); height: 110px; overflow: hidden; }
+.dots {
+  width: 100%; height: 100%;
+  --gap: 20px;
+  background-image: radial-gradient(circle, var(--accent) 26%, transparent 30%);
+  background-size: var(--gap) var(--gap);
+  background-position: center;
+}
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
+@media (max-width: 720px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.size-inputs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.size-inputs input { font-size: 20px; padding-right: 44px; }
+
+.note { font-size: 14px; color: var(--muted); margin: 0; max-width: 70ch; }
+.warn { font-size: 14px; color: var(--ink); background: var(--chip); border-radius: 6px; padding: 8px 10px; margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .chip { transition: background 120ms, border-color 120ms; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>LED Viewing Distance Calculator</h1>
+    <p class="sub">Type the pixel pitch of an LED display to see how close people can stand and where it looks best. Add the cabinet size to get its resolution.</p>
+  </header>
+
+  <section class="panel" aria-labelledby="h-pitch">
+    <h2 id="h-pitch">Pixel pitch to viewing distance</h2>
+    <div class="row">
+      <div class="field">
+        <label for="pitch">Pixel pitch</label>
+        <div class="input-wrap">
+          <input id="pitch" type="number" inputmode="decimal" step="any" min="0" value="2.5">
+          <span class="unit">mm</span>
+        </div>
+        <p class="hint">Common pitches, tap one:</p>
+        <div class="chips" id="chips"></div>
+        <div class="dots-box" aria-hidden="true"><div class="dots" id="dots"></div></div>
+        <p class="hint">Dot spacing preview. Smaller pitch packs the dots closer.</p>
+      </div>
+      <div class="readouts" aria-live="polite">
+        <div class="read"><span class="k">Closest comfortable distance</span><span class="v" id="minM">2.5 m</span><span class="s" id="minF"></span></div>
+        <div class="read"><span class="k">Best viewing range</span><span class="v accent" id="bestM">5 to 7.5 m</span><span class="s" id="bestF"></span></div>
+        <div class="read"><span class="k">Pixel density</span><span class="v" id="dens">160,000</span><span class="s">pixels per square metre</span></div>
+      </div>
+    </div>
+    <p class="note">Rule of thumb: the closest distance in metres is about equal to the pitch in millimetres, and the best range is 2 to 3 times that. Suppliers use slightly different multipliers, so treat this as a guide and check the supplier's datasheet.</p>
+  </section>
+
+  <div class="two">
+    <section class="panel" aria-labelledby="h-res">
+      <h2 id="h-res">Size to resolution</h2>
+      <div class="size-inputs">
+        <div class="field">
+          <label for="w">Width</label>
+          <div class="input-wrap"><input id="w" type="number" inputmode="decimal" step="any" min="0" value="600"><span class="unit">mm</span></div>
+        </div>
+        <div class="field">
+          <label for="h">Height</label>
+          <div class="input-wrap"><input id="h" type="number" inputmode="decimal" step="any" min="0" value="337.5"><span class="unit">mm</span></div>
+        </div>
+      </div>
+      <div class="readouts" aria-live="polite">
+        <div class="read"><span class="k">Resolution at this pitch</span><span class="v accent" id="res">240 × 135</span><span class="s" id="tot"></span></div>
+      </div>
+      <p class="warn" id="resWarn" hidden></p>
+      <p class="hint">Uses the pitch above. Resolution is size divided by pitch on each side.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-dist">
+      <h2 id="h-dist">Viewing distance to pitch</h2>
+      <div class="field">
+        <label for="dist">Closest viewer distance</label>
+        <div class="input-wrap"><input id="dist" type="number" inputmode="decimal" step="any" min="0" value="3"><span class="unit">m</span></div>
+      </div>
+      <div class="readouts" aria-live="polite">
+        <div class="read"><span class="k">Pitch should be no larger than</span><span class="v accent" id="maxP">3 mm</span><span class="s" id="stdP"></span></div>
+      </div>
+      <p class="hint">Use this when you know where people will stand and need to pick a pitch.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var STD = [0.9, 1.2, 1.5, 1.8, 2, 2.5, 3, 3.9, 4, 5, 6, 8, 10];
+  var $ = function (id) { return document.getElementById(id); };
+  var FT = 3.28084;
+
+  function trim(n, d) {
+    var s = n.toFixed(d);
+    if (s.indexOf('.') > -1) s = s.replace(/0+$/, '').replace(/\.$/, '');
+    return s;
+  }
+  function group(n) { return Math.round(n).toLocaleString('en-US'); }
+
+  var chips = $('chips');
+  STD.forEach(function (p) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.textContent = 'P' + trim(p, 2);
+    b.setAttribute('data-p', p);
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', function () { $('pitch').value = p; update(); });
+    chips.appendChild(b);
+  });
+
+  function update() {
+    var p = parseFloat($('pitch').value);
+    var ok = p > 0 && isFinite(p);
+
+    Array.prototype.forEach.call(chips.children, function (c) {
+      c.setAttribute('aria-pressed', ok && Math.abs(parseFloat(c.getAttribute('data-p')) - p) < 1e-9 ? 'true' : 'false');
+    });
+
+    if (ok) {
+      var lo = p, bl = 2 * p, bh = 3 * p;
+      $('minM').textContent = trim(lo, 2) + ' m';
+      $('minF').textContent = trim(lo * FT, 1) + ' ft';
+      $('bestM').textContent = trim(bl, 2) + ' to ' + trim(bh, 2) + ' m';
+      $('bestF').textContent = trim(bl * FT, 1) + ' to ' + trim(bh * FT, 1) + ' ft';
+      $('dens').textContent = group(1e6 / (p * p));
+      var gap = Math.min(90, Math.max(6, p * 8));
+      $('dots').style.setProperty('--gap', gap + 'px');
+    } else {
+      ['minM', 'bestM', 'dens'].forEach(function (id) { $(id).textContent = '-'; });
+      $('minF').textContent = '';
+      $('bestF').textContent = 'Enter a pitch above 0';
+    }
+
+    var w = parseFloat($('w').value), h = parseFloat($('h').value);
+    var warn = $('resWarn');
+    if (ok && w > 0 && h > 0) {
+      var cx = w / p, cy = h / p;
+      var rx = Math.round(cx), ry = Math.round(cy);
+      var exact = Math.abs(cx - rx) < 0.01 && Math.abs(cy - ry) < 0.01;
+      var fx = exact ? rx : Math.floor(cx), fy = exact ? ry : Math.floor(cy);
+      $('res').textContent = group(fx) + ' × ' + group(fy);
+      $('tot').textContent = group(fx * fy) + ' pixels in total';
+      if (exact) { warn.hidden = true; }
+      else {
+        warn.hidden = false;
+        warn.textContent = 'This size is not a whole number of pixels at this pitch (' + trim(cx, 2) + ' × ' + trim(cy, 2) + '). The count shown is rounded down. Check the supplier’s datasheet for the true resolution.';
+      }
+    } else {
+      $('res').textContent = '-';
+      $('tot').textContent = '';
+      warn.hidden = true;
+    }
+
+    var d = parseFloat($('dist').value);
+    if (d > 0 && isFinite(d)) {
+      $('maxP').textContent = trim(d, 2) + ' mm';
+      var best = null;
+      STD.forEach(function (s) { if (s <= d + 1e-9) best = s; });
+      $('stdP').textContent = best === null
+        ? 'Closer than any common pitch here. Look at P0.9 or finer.'
+        : 'Nearest common pitch: P' + trim(best, 2);
+    } else {
+      $('maxP').textContent = '-';
+      $('stdP').textContent = 'Enter a distance above 0';
+    }
+  }
+
+  ['pitch', 'w', 'h', 'dist'].forEach(function (id) { $(id).addEventListener('input', update); });
+  update();
+})();
+</script>
+
+</body></html>
